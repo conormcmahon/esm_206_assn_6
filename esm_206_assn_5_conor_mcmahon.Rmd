@@ -1,0 +1,282 @@
+
+---
+title: "esm_206_assn_5_conor_mcmahon"
+author: "Conor McMahon"
+date: "12/3/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE, }
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, 
+                      fig.width = 9, fig.height = 6, fig.align = "center")
+
+library(tidyverse)
+library(janitor)
+library(kableExtra)
+library(car)
+
+```
+
+## Introduction
+
+The Pacific giant salamander (Dicamptodon tenebrosus) is a very large salamander (generally 6.25 to 17 cm, but up to 34 cm) endemic to the Pacific Northwest of North America. Larvae are aquatic, while adults may either be neotenic and aquatic, or may lose their gills and change to a life on land.^[1](https://animaldiversity.org/accounts/Dicamptodon_tenebrosus/)^
+
+![[Pacific giant salamander (Dicamptodon tenebrosus). Image by Dave Huth (CC-BY-2013)](https://www.inaturalist.org/observations/306449)](dite.jpg)
+
+The utilized here included surveys for cutthroat troat (Onchorhyncus clarkii), Olympic torrent salamanders (Rhyacotriton olympicus), and Pacific Giant Salamanders (D. tenebrosus). However, for the purposes of this analysis only D. tenebrosus was considered, which species shall hereforth be referred to as 'salamander'. 
+
+Amphibians are often considered 'indicator species' - animals which show early signs of environmental contamination and damage, often before impacts are visible on other species. This is in part because of their sensitivity to environmental toxins due to their gas-exchanging skin, and partly because their amphibious lifestyles force them to be simultaneously dependent on multiple different habitats within their environment.^[2](https://www.fws.gov/southwest/es/Documents/R2ES/LitCited/4TX_Sal/Welsh_and_Ollivier_1998_Stream_amphibians_as_indicators_of_ecosystem_stress.pdf)^ Indeed, *D. tenebrosus* has itself been used in past studies showing an indicator effect of stream contamination by sediment.^[3](https://www.fws.gov/southwest/es/Documents/R2ES/LitCited/4TX_Sal/Welsh_and_Ollivier_1998_Stream_amphibians_as_indicators_of_ecosystem_stress.pdf)^ For these reasons, it seems reasonable to assume that the counts of this species sampled in a system modified by human timber extraction may provide insight into ecosystem stress caused by that activity. 
+
+## Data and Methods
+
+```{r}
+
+# Import data from CSV
+salamanders <- read_csv("mack_creek_vertebrates.csv") %>%
+  janitor::clean_names() %>%
+  filter(species == "DITE") # Remove all species except Pacific Giant Salamander
+
+```
+
+The data^[4](https://portal.edirepository.org/nis/mapbrowse?scope=knb-lter-and&identifier=4027&revision=12)^ target two sections of stream along Mack Creek in Oregon, split into two 150 m 'reaches.' One of these reaches was clear cut in 1963, 24 years before the study started. The other is old growth forest which has been in place for at least 500 years. 
+
+![Mack Creek as seen from from above. Image by Maxar Technologies, 2019, and distributed by Google.](map.png)
+
+
+Sampling is conducted once a year at both reaches. The creek is netted off on both ends and electrofishing is used to attempt to survey the cutthroat trout and salamander populations. Sampling is conducted in two passes within each reach. Whenever a species is sampled, data are also recorded on the type of water section it was sampled from (including cascade, pool, and side channel classes).
+
+Because the same methods were used in both reaches, and both reaches are the same standardized length, raw abundance numbers are compared here between the two sites, without an attempt at a normalization for survey effort. A chi-square test of independence was employed to investigate the assocation between salamander habitat usage in the creek and forest condition. Subsequently, the relationship between salamander weight and forest condition was determined using a t-test. Lastly, a one-way ANOVA was run to check the difference in means between the salamander weights across the three stream habitat types. For all analyses an $\alpha$ of 0.05 was employed. 
+
+All analyses were conducted in RStudio v.1.2.1335, using R v.3.6.1. Analysis built against the Tidyverse package v.1.2.1. 
+
+
+## Results
+
+
+#### A: Annual Salamader Counts in Clear Cut vs. Old Growth Stands
+
+```{r}
+
+# Total Counts by Section and Year
+sectionwise_annual_counts <- salamanders %>%
+  group_by(section, year) %>%
+  summarize(count = n())
+
+# Create a plot showing change in counts over time by forest condition
+ggplot(data = sectionwise_annual_counts, aes(x = year, y = count, 
+                                             group = section, col = section)) + 
+  geom_line(size = 1) + 
+  # Change format settings for legend, title, and caption
+  theme_minimal() +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5, size = 15, face = "bold"),
+        plot.caption = element_text(hjust = 0, size = 10),
+        axis.title.y = element_text(size = 10, face = "bold"),
+        axis.title.x = element_text(size = 10, face = "bold")) +
+  # Remove annoying padding at edge of plot
+  scale_x_continuous(limits = c(1993,2017), expand = c(0,0)) + 
+  scale_y_continuous(limits = c(0, 400), expand = c(0,0)) + 
+  # Set clearcut as tomato, old growth as cyan
+  scale_color_manual(values = c("tomato3", "cyan3")) +
+  # Add labels for each trendline (by site)
+  annotate(geom="text", x = 1996, y = 175, hjust = "left", 
+           col = "cyan3", label = 'bold("Old Growth")', parse = TRUE) + 
+  annotate(geom="text", x = 1996, y = 60, hjust = "left", 
+           col = "tomato3",   label = 'bold("Clear Cut")', parse = TRUE) + 
+  # Text for title, axis labels, and caption
+  ggtitle("Salamander Abundance") + 
+  labs(caption = "Figure 1: Salamander abundance given as total counts for each year. Old growth sites are shown in cyan; clear cut sites are \nin tomato.") + 
+  xlab("Year") + 
+  ylab("Salamander Abundance")
+
+```
+
+As shown in Figure 1, The total number of salamanders was higher in most years at the old growth site than in the clear cut site. There appears to have been an increase in salamander population in both reaches around the year 2001, with the population subsequently levelling off. Since 2012, the difference in abundance between the two sites has decreased, and in several recent years abundance has actually been higher at the clear cut sites. Around the same time there appears to have been a crash in the salamander population at both sites, with numbers increasing again in 2014 and eventually rebounding to pre-crash levels in 2017. In most years the two ranges show similar trends in annual population change, even where the absolute values of population size differ.
+
+#### B: 2017 Salamnder Counts by Channel Classification
+
+```{r}
+
+salamanders_2017 <- salamanders %>%
+  filter(year == 2017, unittype %in% c("C", "P", "SC")) %>%
+  group_by(section, unittype) %>%
+  summarize(count = n()) %>%
+  mutate(freq = round(count / sum(count), 2))
+
+# Rename some values for clarity in the output table
+#   Forest Condition
+salamanders_2017[salamanders_2017$section == "CC",]$section <- "Clear Cut"
+salamanders_2017[salamanders_2017$section == "OG",]$section <- "Old Growth"
+#   Creek Condition
+salamanders_2017[salamanders_2017$unittype == "C",]$unittype <- "Cascade"
+salamanders_2017[salamanders_2017$unittype == "P",]$unittype <- "Pool"
+salamanders_2017[salamanders_2017$unittype == "SC",]$unittype <- "Side Channel"
+
+#kable(salamanders_2017) %>% 
+#  kable_styling()
+
+# I tried a few different approaches here until I got a table format I was happy with...
+
+salamanders_2017_try2 <- salamanders_2017 %>%
+  select(section, unittype, count) %>%
+  janitor::adorn_percentages(denominator = "row") %>%
+  janitor::adorn_pct_formatting(digits=2) %>%
+  janitor::adorn_ns(position = "front")
+
+#kable(salamanders_2017_try2)
+
+salamanders_2017_try3 <- salamanders_2017 %>%
+  select(section, unittype, count) %>%
+  pivot_wider(names_from = unittype, values_from = count)
+
+salamanders_2017_try3_freq <- salamanders_2017_try3 %>%
+#  column_to_rownames('section')
+  janitor::adorn_percentages(denominator = "row") %>%
+  janitor::adorn_pct_formatting(digits=2) %>%
+  janitor::adorn_ns(position = "front")
+
+kable(salamanders_2017_try3_freq, caption = "Table 1: Abundance and proportion of total population for salamanders in each creek habitat type, split by forest condition.") %>%
+  kable_styling()
+
+```
+
+As can be seen in Table 1, a majority of all salamanders were found in the cascade creek habitat, with about a quarter in the side channels and only a few in the pool areas. In the old growth reach there were fewer salamanders in the cascades and more in the pools when compared to the clear cut area. 
+
+
+#### C: Association Between Forest Condition and Channel Classification
+
+```{r}
+
+chi_table <- salamanders_2017_try3 %>%
+  column_to_rownames('section')
+
+# Perform a chi-square test to determine whether channel habitat use and forest condition are related 
+salamander_chi <- chisq.test(chi_table)
+
+
+```
+
+As shown in Table 1, there were slight differences in the frequencies of salamanders at the different creek habitats between the two ranges - for example, in the clear cut there were 4.3% more salamanders in the cascades and 5.6% fewer in the pools. However, a chi-square test of independence did not find a significant relationship between creek habitat usage and forest condition for these data ($\chi$^2^(`r salamander_chi$parameter`) = `r round(salamander_chi$statistic,2)`, *p* = `r round(salamander_chi$p.value,3)`)
+
+#### D: Salamander Weights by Forest Condition
+
+
+```{r}
+
+# Get mean weights by group in 2017
+salamander_weights <- salamanders %>%
+  filter(year == 2017, unittype %in% c("C", "P", "SC"))
+
+salamander_weight_means <- salamander_weights %>%
+  group_by(section) %>%
+  summarize(mean = mean(weight, na.rm=TRUE))
+
+#kable(salamander_weight_means)
+
+clearcut_mean_weight <- salamander_weight_means[salamander_weight_means$section == "CC",]$mean
+oldgrowth_mean_weight <- salamander_weight_means[salamander_weight_means$section == "OG",]$mean
+
+salamander_weight_t <- t.test(weight ~ section, data = salamander_weights, paired = FALSE)
+
+#salamander_weight_t
+
+```
+
+Salamanders in the clear cut area of the creek were larger on average than salamanders in the old growth section (with mean masses of `r round(clearcut_mean_weight,2)` and `r round(oldgrowth_mean_weight,2)` g, respectively). However, an unpaired t test did not find that the apparent relationship between salamander size and creek condition was significant (t(`r round(salamander_weight_t$parameter,2)`) = `r round(salamander_weight_t$statistic,2)`, *p* = `r round(salamander_weight_t$p.value,3)`).
+
+
+#### E: Salamander Weights by Channnel Classification
+
+```{r}
+
+channel_weights <- salamander_weights %>%
+  filter(!is.na(weight))
+# Clean Names
+channel_weights[channel_weights$unittype == "C",]$unittype <- "Cascade"
+channel_weights[channel_weights$unittype == "P",]$unittype <- "Pool"
+channel_weights[channel_weights$unittype == "SC",]$unittype <- "Side Channel"
+
+channel_stats <- channel_weights %>%
+  group_by(unittype) %>%
+  summarize(mean = mean(weight, na.rm=TRUE), sd = sd(weight, na.rm=TRUE)) %>%
+  mutate(low_mark = mean - sd, high_mark = mean + sd)
+
+#print(channel_stats)
+
+# Make a figure showing weight density function across different creek types
+ggplot() + 
+  geom_density(data = channel_weights, aes(x = weight), col="green3", size = 1) + 
+  geom_vline(data = channel_stats, aes(xintercept = mean), col = "red", size = 1) +
+  geom_vline(data = channel_stats, aes(xintercept = low_mark), col = "gray3", size = 0.7) +
+  geom_vline(data = channel_stats, aes(xintercept = high_mark), col = "gray3", size = 0.7) +
+  facet_wrap(~unittype, ncol=1) + 
+  theme_minimal() +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5, size = 15, face = "bold"),
+        plot.caption = element_text(hjust = 0, size = 10),
+        axis.title.y = element_text(size = 10, face = "bold"),
+        axis.title.x = element_text(size = 10, face = "bold")) +
+  ggtitle("Salamander Weight by Habitat") + 
+  labs(caption = "Figure 2: Salamander weight distributions, split by creek habitat type. Observed density function is in green. Red lines are mean values for a given habitat, and dark gray lines are the mean value offset by one standard deviation in each direction.") + 
+  xlab("Salamander Weight (g)") + 
+  ylab("Frequency")
+
+
+```
+
+Figure 2 shows the mean weight distributions for salamanders in the three habitat types. The distributions overlap pretty substantially. An ANOVA test can be run to determine whether there are significant differences in mean values between any of these regions, but first the assumptions must be checked. The normality assumption is not very well met - the density functions all have a clear skew to the right. However, ANOVA is somewhat robust to violations of the normality assumption. 
+
+```{r}
+
+weight_lev <- leveneTest(weight ~ unittype, data = channel_weights)
+
+#print(weight_lev)
+
+```
+
+A Levene test was run to check whether the variances can be assumed to be similar across the habitat groups. The test did not provide significant evidence to support the rejection of the null hypothesis that the variances are the same (F(`r round(weight_lev[1,]$Df,2)`) = `r round(weight_lev[1,]$'F value',2)`, *p* = `r round(weight_lev[1,]$'Pr(>F)',2)`), so it will be assumed that the variances are similar (the second ANOVA assumption). The last assumption, that samples are independent, is reasonable given the netting which prevents recatch of the same salamanders from different sites. 
+
+```{r}
+
+weight_aov <- aov(weight ~ unittype, data = channel_weights)
+
+#summary(weight_aov)
+
+# For some reason I can't get the inline references to work for the statistics and parameters etc. from this ANOVA! So I'm just hard coding the results this time :/
+
+sc_mean <- round(mean(channel_weights[channel_weights$unittype == "Side Channel",]$weight, na.rm = TRUE),2)
+p_mean <- round(mean(channel_weights[channel_weights$unittype == "Pool",]$weight, na.rm = TRUE),2)
+c_mean <- round(mean(channel_weights[channel_weights$unittype == "Cascade",]$weight, na.rm = TRUE),2)
+
+```
+
+A one-way ANOVA determined that there are significant differences in salamander weight across the three habitat types (F(2) = 4.22, *p* = 0.015). Comparing actual means we see that the pool system had the highest mean weight, at `r p_mean` g, which exceeds the mean values in the cascades and side channels (`r c_mean` and `r sc_mean` g) by `r round(p_mean / c_mean - 1,2)` and `r round(p_mean / sc_mean - 1,2)` %, respectively.
+
+All that said, means may not be the most appropriate measure of central tendency to use for comparison in this case. As noted previously all three distributions have clear right skew, which indicates that the median may be a better measure of center than the mean. Consequently, it might be more appropriate to instead use a rank-based test. 
+
+
+## Summary
+
+Major findings of the above analyses include:
+
+1. Salamander abundance and change over time appear similar between old growth and clear cut forest systems, although for most years sampled the old growth system yielded higher counts.
+2. No significant relationship was found between forest condition and habitat preference among the salamanders in the creek.
+3. Significant differences were recovered in the mean salamander weights between the three habitat types surveyed (pooling forest condition ranges), although some reservations are here warranted due to moderate violation of the assumptions of the statistical test employed (ANOVA).
+
+## References
+
+[1] Mike L. 2011. Dicamptodon tenebrosus. Animal Diversity Web. https://animaldiversity.org/accounts/Dicamptodon_tenebrosus/. Accessed 12/03/2019.
+
+[2] James H. W. 2006. Use of Amphibians as Indicator Species. Dissertation, University of Florida. http://etd.fcla.edu/UF/UFE0016760/waddle_j.pdf. Accessed 12/03/2019.
+
+[3] Hartwell H. W., Lisa M. O. 1998. Stream Amphibians as Indicators of Ecosystem Stress: A Case Study from California's Redwoods. Ecological Adaptations, 8, pp 1118-1132. https://www.fws.gov/southwest/es/Documents/R2ES/LitCited/4TX_Sal/Welsh_and_Ollivier_1998_Stream_amphibians_as_indicators_of_ecosystem_stress.pdf. Accessed 12/03/2019. 
+
+[4] Gregory S. V. 2016. Aquatic Vertebrate Population Study in Mack Creek, Andrews Experimental Forest, 1987 to present. Environmental Data Initiative. https://doi.org/10.6073/pasta/5de64af9c11579266ef20da2ff32f702. Dataset accessed 11/19/2019.
+
+
+```{r}
+
+TukeyHSD(weight_aov)
+
+```
+
